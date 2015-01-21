@@ -1,0 +1,22 @@
+#!/bin/bash
+# setup application as a daemon, managed by either upstart or systemd
+# $1 path_to_package
+# $2 app_user
+# $3 service name
+# $4 daemon type=upstart|systemd
+
+echo "replace active manifest path with actual path $1"
+echo "replace actual application user $2"
+[ -f "${1}/cronus/upstart.conf" ] && sed -i "s|PATH_TO_PACKAGE|${1}|g" ${1}/cronus/upstart.conf; sed -i "s|APP_USER|${2}|g" ${1}/cronus/upstart.conf; 
+[ -f "${1}/cronus/systemd.service" ] && sed -i "s|PATH_TO_PACKAGE|${1}|g" ${1}/cronus/systemd.service; sed -i "s|APP_USER|${2}|g" ${1}/cronus/systemd.service;
+
+echo "setup daemon for ${3}"
+if [ "${4}" = "upstart" ] && [ -d /etc/init ]; then
+  echo "use upstart"
+  cp -f ${1}/cronus/upstart.conf /etc/init/${3}.conf
+elif [ "${4}" = "systemd" ] && [ -d /etc/systemd ]; then
+  echo "use systemd"
+  cp -f ${1}/cronus/systemd.service /usr/lib/systemd/system/${3}.service
+  ln -s /lib/systemd/system/${3}.service /etc/systemd/system/multi-user.target.wants/${3}.service
+fi
+

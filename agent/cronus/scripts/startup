@@ -1,0 +1,62 @@
+#!/bin/bash
+
+SERVICE_NAME="agent"
+EXPECTED_ARGS=2
+INI=
+DAEMON="--daemon"
+
+# check the number of args
+if [[ $# > $EXPECTED_ARGS ]]
+then
+        echo "Usage: `basename $0` [.ini] [nodaemon]"
+        exit -1
+fi
+
+if [ "$1" == "nodaemon" ] || [ "$2" == "nodaemon" ] || [ "$3" == "nodaemon" ]; then
+    DAEMON=""
+fi
+
+if [ $# = 0 ] || [ "$1" == "nodaemon" ]; then
+	INI=prod.ini
+else
+	INI=$1.ini
+fi
+
+# get path to paster
+SERVICE_PATH="$(dirname $0)/../.."
+cd $SERVICE_PATH
+
+INSTALL_ROOT_DIR="$SERVICE_PATH/../../../../../../.."
+
+export PYTHON_EGG_CACHE="$INSTALL_ROOT_DIR/cronus/.python_egg_cache"
+
+[ -f ${SERVICE_NAME}.pid ] && rm -f ${SERVICE_NAME}.pid > /dev/null 2>&1
+
+if [[ ! -f conf/${INI} ]]; then
+    echo '[AGENT_MESSAGE] {"errorMsg": "Unable to find config file", "error": 200}'
+    exit -1
+fi
+
+# copy security related data
+CRONUS_SECURE_DIR="$SERVICE_PATH/.appdata/secure"
+if [ -f "$CRONUS_SECURE_DIR/server.pem" ]; then
+	echo "Override default server cert"
+	cp -af $CRONUS_SECURE_DIR/server.pem $SERVICE_PATH/cronus/server.pem
+fi
+
+if [ -d "$CRONUS_SECURE_DIR/keys" ]; then
+	echo "Copy installed public keys"
+	cp -af $CRONUS_SECURE_DIR/keys/. $SERVICE_PATH/cronus/keys/
+fi
+
+PYTHON_PATH="../../../manifests/active/python_package/bin/"
+$PYTHON_PATH/python $PYTHON_PATH/paster serve ${DAEMON} --pid-file=${SERVICE_NAME}.pid --log-file=logs/agent.log conf/${INI}
+
+sleep 1
+
+if [ ! -f ${SERVICE_NAME}.pid ]; then
+    echo "[AGENT_MESSAGE] {\"errorMsg\": \"Unable to find ${SERVICE_NAME}.pid\", \"error\": 200}"
+    exit -1
+fi
+
+exit 0

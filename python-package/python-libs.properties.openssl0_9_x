@@ -1,0 +1,1 @@
+libs=nested_dict,httplib2,pyyaml,pyOpenSSL==0.11,simplejson==2.4.0,Pylons==1.0

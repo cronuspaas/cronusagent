@@ -1,0 +1,31 @@
+#!/bin/bash
+
+SERVICE_NAME='perlserver.pl'
+
+# get path to paster
+SERVICE_PATH="$(dirname $0)/../../"
+cd $SERVICE_PATH
+
+if [[ -f port ]]; then
+    rm port
+fi
+
+if [[ -f ${SERVICE_NAME}.pid ]]; then
+    PID=`cat ${SERVICE_NAME}.pid`
+    rm ${SERVICE_NAME}.pid
+else
+    echo "Cannot find PID using PS instead"
+    PID=`ps -aef | grep $USER | grep -v grep | grep perlserver | awk '{print $2}' `
+fi
+
+if [[ $PID == "" ]]; then
+    echo "Unable to find a pid for perlserver.pid"
+    exit 0
+fi
+
+echo "Shutdown ${SERVICE_NAME} with PID = $PID"
+kill -9 $PID
+
+exit 0
+
+

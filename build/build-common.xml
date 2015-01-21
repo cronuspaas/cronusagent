@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="build-common" default="test.test">
+
+    <!-- =================================================================== -->
+    <!-- Init Targets   -->
+    <!-- =================================================================== -->
+    <target name="init.init-common" depends="init.default-properties,init.loadprop">
+        <!-- check for override properties -->
+        <condition property="isset.fileset.package.lib">
+            <isreference refid="fileset.package.lib"/>
+        </condition>
+
+        <!-- load additional ant tasks -->
+        <taskdef resource="net/sf/antcontrib/antlib.xml">
+            <classpath>
+                <fileset dir="${dir.lib.common}" includes="*.jar"/>
+            </classpath>
+        </taskdef>
+    </target>
+    <target name="init.default-properties">
+        <!-- default build env -->
+        <property name="env.build" value="dev"/>
+        <!-- default test env -->
+        <property name="env.test" value="unit"/>
+    </target>
+    <target name="init.loadprop">
+        <property file="${basedir}/local-deploy.properties"/>
+        <property file="${dir.common}/build-common.properties"/>
+
+        <!-- other dir assignment -->
+        <property name="dir.src.test" value="${dir.src.test-root}/${env.test}"/>
+        <property name="dir.target.classes.test" value="${dir.target}/classes-test-${env.test}"/>
+        <property name="dir.target.test-report" value="${dir.target}/test-report-${env.test}"/>
+    </target>
+    
+    <!-- =================================================================== -->
+    <!-- Clean Targets   -->
+    <!-- =================================================================== -->
+    <target name="clean.all" description="cleans all artifacts">
+        <delete includeemptydirs="true" quiet="true" dir="${dir.target}"/>
+    </target>
+    <target name="clean.pyc" description="clean python .pyc files" >
+        <delete quiet="true" dir="${basedir}">
+            <include name="**/*.pyc"/>
+        </delete>
+    </target>
+    <target name="clean.logs" description="removes logs" depends="init.init-common">
+        <delete includeemptydirs="true" quiet="true" dir="${dir.target.logs}"/>
+    </target>
+    <target name="clean.dist" description="removes distribution artifacts" depends="init.init-common">
+        <delete includeemptydirs="true" quiet="true" dir="${dir.target.dist}/"/>
+    </target>
+
+    <!-- =================================================================== -->
+    <!-- test targets   -->
+    <!-- =================================================================== -->
+    <target name="init.test" depends="init.init-common">
+        <mkdir dir="${dir.target.test-report}"/>
+    </target>
+    <target name="test" depends="init.test" unless="notest" description="runs tests in this project. default to unit test.  specify with -Denv.test=unit|integration|performance"/>
+
+    <!-- =================================================================== -->
+    <!-- package targets   -->
+    <!-- =================================================================== -->
+    <target name="init.fileset.package.lib" unless="isset.fileset.package.lib">
+        <!-- dependency includes.  default to everything in lib folder -->
+        <path id="fileset.package.lib">
+            <fileset dir="${dir.lib}">
+                <include name="**/*"/>
+            </fileset>
+        </path>
+    </target>
+    <target name="init.package" depends="init.init-common,init.fileset.package.lib">
+        <mkdir dir="${dir.target.dist}"/>
+
+        <property file="${file.version}"/>
+        <property name="package-version" value="${version.major}.${version.minor}.${buildnum}${revision}"/>
+        <property name="name.package" value="${module}.${package-version}"/>
+    </target>
+
+    <!-- =================================================================== -->
+    <!-- Untils   -->
+    <!-- =================================================================== -->
+    <target name="remove.whitespace" depends="init.init-common">
+        <apply executable="${dir.common}/scripts/remove_whitespace.sh">
+            <fileset dir="${dir.src.main}">
+                <include name="**/*.java"/>
+                <include name="**/*.py"/>
+                <include name="**/*.xml"/>
+                <include name="**/*.ini"/>
+            </fileset>
+            <fileset dir="${basedir}">
+                <include name="*.xml"/>
+                <include name="**/shutdown"/>
+                <include name="**/startup"/>
+                <include name="**/install"/>                
+                <include name="**/activate"/>
+            </fileset>
+            <fileset dir="${dir.src.test}">
+                <include name="**/*.java"/>
+                <include name="**/*.py"/>
+                <include name="**/*.xml"/>
+                <include name="**/*.ini"/>
+            </fileset>
+        </apply>
+    </target>
+    <target name="make.config" depends="init.package">
+        <exec executable="${dir.python.bin}/python">
+            <arg value="${dir.common}/scripts/make_config.py"/>
+            <arg value="${module}"/>
+        </exec>
+    </target>
+    <target name="process.target.dist" depends="init.init-common">
+        <echo>process tar dist ${dir.target.dist} </echo>   
+        <delete includeemptydirs="true">
+            <fileset dir="${dir.target.dist}" defaultexcludes="false">
+                <include name="**/.git/"/>
+            </fileset>
+        </delete> 
+    </target>
+
+    <target name="create.cronus" depends="init.init-common">
+        <delete quiet="true">
+            <fileset dir="${dir.target.dist}">
+                <include name="**/*.cronus"/>
+                <include name="**/*.cronus.prop"/>
+            </fileset>
+        </delete>
+        <apply executable="${dir.common}/scripts/make_cronus.sh" failonerror="true">
+            <dirset dir="${dir.target.dist}">
+                <include name="*"/>
+            </dirset>
+        </apply>
+    </target>
+</project>

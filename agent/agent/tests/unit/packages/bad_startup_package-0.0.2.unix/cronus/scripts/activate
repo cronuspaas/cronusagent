@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# test script that just errors out when you startup
+
+echo '[AGENT_MESSAGE] {"errorMesg": "test message", "error": 243}'
+exit -1

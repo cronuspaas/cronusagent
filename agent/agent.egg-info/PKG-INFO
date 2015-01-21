@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: agent
+Version: 0.1.45
+Summary: cronusagent
+Home-page: http://www.cronuspaas.com
+Author: cronuspaas
+Author-email: cronuspaas@gmail.com
+License: Apache2.0
+Description: agent
+Platform: linux

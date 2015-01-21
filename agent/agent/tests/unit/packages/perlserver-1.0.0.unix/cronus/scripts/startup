@@ -1,0 +1,21 @@
+#!/bin/bash
+
+SERVICE_NAME="perlserver.pl"
+EXPECTED_ARGS=1
+
+# get path to paster
+SERVICE_PATH="$(dirname $0)/../../"
+cd $SERVICE_PATH
+
+echo "Startup ${SERVICE_NAME} - pwd = `pwd`"
+./${SERVICE_NAME} &
+echo $! > ${SERVICE_NAME}.pid
+
+if [ ! -f ${SERVICE_NAME}.pid ]; then
+    echo "Error: Unable to find ${SERVICE_NAME}.pid"
+    exit -1
+fi
+
+echo "Done"
+
+exit 0

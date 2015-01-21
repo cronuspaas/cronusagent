@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [[ $# != 2 ]]
+then
+        echo "Usage: encryptkey path_to_pub_key clear_data"
+        exit -1
+fi
+echo $2 | openssl rsautl -encrypt -inkey $1 -pubin | openssl enc -base64

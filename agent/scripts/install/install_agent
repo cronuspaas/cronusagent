@@ -1,0 +1,305 @@
+pkg_dir=$(cd "$(dirname "$0")"; pwd)
+#echo "pkg_dir=$pkg_dir"
+
+# Help function
+display_help() {
+    echo 
+    echo "Usage"
+    echo "  MUST RUN AS ROOT!"
+    echo "  Runtime dependency: python 2.6 and above, openssl 0.9.8 and above, upstart or systemd."
+    echo "  Install dependency: Must run as root. Need wget."
+    echo "  wget -qO- 'http://cronuspaas.github.io/downloads/install_agent' | sudo pkg_ver=<agent_ver> target_dir=<install_dir> server_pem=<httpcert.pem> agent_pwd=<api_password> dev=true bash"
+    echo 
+    echo "  Examples:"
+    echo "    wget -qO- 'http://cronuspaas.github.io/downloads/install_agent' | sudo dev=true bash"
+    echo "    wget -qO- 'http://cronuspaas.github.io/downloads/install_agent' | sudo pkg_ver=0.1.45 target_dir=/var server_pem=./server.pem agent_pwd=password bash"
+    echo ""
+    exit -1
+}
+
+# Error reporting function
+fatal_error () {
+    MSG=$1 
+    log_event "----------------------------------" | tee -a $LOG
+    log_event "FATAL ERROR on `date`: $MSG Aborting..." | tee -a $LOG
+    rm -rf $DIR/pkgs
+    rm -f $TMP
+    exit -1
+}
+
+# Logging function
+log_event () {
+    MSG=$1
+    echo "$MSG" | tee -a $LOG
+}
+
+# Check agent dependencies
+check_agent_req () {
+    hash wget 2>/dev/null || { log_event "missing wget"; display_help; }
+    (hash initctl 2>/dev/null || hash systemctl 2>/dev/null) || { log_event "missing system daemon, need upstart or systemd"; display_help; }
+    hash python 2>/dev/null || { log_event "missing python"; display_help; }
+    hash openssl 2>/dev/null || { log_event "missing openssl"; display_help; }
+}
+
+# OS checking function
+checkos() {
+
+    OS=$(awk '/DISTRIB_ID=/' /etc/*-release | sed 's/DISTRIB_ID=//' | tr '[:upper:]' '[:lower:]')
+
+    ARCH=$(uname -m | sed 's/x86_//;s/i[3-6]86/32/')
+
+    case $(uname -m) in
+    x86_64)
+        ARCH=x64  # or AMD64 or Intel64 or whatever
+        ;;
+    i*86)
+        ARCH=x86  # or IA32 or Intel32 or whatever
+        ;;
+    *)
+        # leave ARCH as-is
+        ;;
+    esac
+
+    if [ -z "$OS" ] && [ -f /etc/os-release ]; then
+        OS=$(awk '/^ID=/' /etc/os-release | sed 's/ID=//' | tr '[:upper:]' '[:lower:]')
+    fi
+
+    if [ -z "$OS" ]; then
+        OS=$(lsb_release -i | awk '{print $3}' | tr '[:upper:]' '[:lower:]')
+    fi
+
+    if [ -z "$OS" ]; then
+        OS="generic"
+    fi
+
+    OPENSSL=$(openssl version | tr '[:upper:]' '[:lower:]' | awk '{print $1,$2}' | sed 's/ //;s/[.]//;s/[.].*//')
+
+    PYTHON="py27"
+    if command -v python2.7 2>&1>/dev/null; then
+        PYTHON="py27"
+    elif command -v python2.6 2>&1>/dev/null; then
+        PYTHON="py26"
+    else
+        log_event "Need python2.7 or 2.6 runtime"
+        exit -1
+    fi
+
+    log_event "${ARCH}_${OS}_${PYTHON}_${OPENSSL}"
+
+}
+
+# Check latest version of things
+checkver() {
+
+    case $1 in
+    agent)
+        log_event "0.1.45" 
+        ;;
+    *)
+        # everything else
+        log_event "1.0.0"
+        ;;
+    esac
+
+}
+
+# check root permissions
+if [[ $EUID -ne 0 ]]; then
+    log_event "This script must be run as root" 1>&2
+    log_event ""
+    display_help
+fi
+
+# check dependencies
+check_agent_req
+
+echo 
+echo
+
+if [ -z "${server_pem}" ]
+then
+    if [ -z "${server_pem}" ]; then
+        echo "Warning: No https cert provided, use default cert (publicly accessible, do not use in production!)."
+    fi
+    if [ "$dev" != "true" ]; then
+        echo "Use dev=true while invoking the command to confirm."
+        display_help
+    fi
+fi
+
+if [ -z "${agent_pwd}" ]; then
+    echo "Warning: No agent password provided, agent API can be accessed without password."
+fi
+
+if [ -z ${pkg_ver} ]; then
+    echo "No agent version specified, using latest stable." 1>&2
+    pkg_ver=$( checkver agent )
+fi
+log_event "Agent version ${pkg_ver}"
+
+if [ -z ${target_dir} ]; then
+    echo "No target_dir specified, using default." 1>&2
+    target_dir=/var
+fi
+log_event "Install directory ${target_dir}"
+
+if [[ ! -n "${pypkg_ver:+1}" ]]; then
+    os_type=$( checkos )
+    py_ver=$( checkver $os_type )
+    pypkg_ver="$py_ver.$os_type"
+fi
+log_event "Runtime version ${pypkg_ver}"
+
+log_event "Install agent ${pkg_ver} in ${target_dir}"
+log_event
+
+# Some defaults
+DIR="$target_dir/cronus/agent_install"
+LOG="$DIR/install.log"
+TMP=/tmp/$$.tmp
+AGENT_PACKAGE_NAME=cronus-agent-bare.tar.gz
+AGENT_ROOT=${target_dir}/cronus/software/service_nodes/agent
+
+# Let's begin
+mkdir -p ${DIR}
+mkdir -p ${DIR}/pkgs
+cd $DIR
+touch $LOG
+
+cd ${DIR}/pkgs
+
+log_event "Create user cronus and cronusapp"
+egrep -i "^app\W" /etc/group > /dev/null 2>&1 || groupadd -r app
+id -u cronus > /dev/null 2>&1 || useradd -r cronus -g app
+id -u cronusapp > /dev/null 2>&1 || useradd -r cronusapp -g app
+
+log_event "Add sudo permission for user cronus"
+
+sed -i '/cronus/d' /etc/sudoers
+log_event "Add ALL NOPASSWD: ALL with cronus /etc/sudoers, disable requiretty"
+log_event 'cronus  ALL = (ALL) NOPASSWD: ALL' >>/etc/sudoers
+sed -ri 's/^([^#].*requiretty).*/#\1/g' /etc/sudoers
+#log_event 'cronusapp  ALL = (ALL) NOPASSWD: ALL' >>/etc/sudoers
+
+log_event "Done change /etc/sudoers"
+log_event
+
+# Cronus agent
+if [ -d $DIR/pkgs ]; then
+
+	cd ${DIR}/pkgs
+        if [ -f "${pkg_dir}/python_package-${pypkg_ver}.cronus" ]; then
+                log_event "Copy python_package-${pypkg_ver}.cronus from local"
+                cp ${pkg_dir}/python_package-${pypkg_ver}.cronus ${DIR}/pkgs
+        else
+                log_event "Download python_package-${pypkg_ver}.unix.cronus from web"
+                wget -nc "https://github.com/yubin154/cronusagent/raw/master/pkgs/python_package-${pypkg_ver}.cronus" || { log_event 'download failed' ; exit 1; }
+        fi
+
+	if [ -f "${pkg_dir}/${AGENT_PACKAGE_NAME}" ]; then
+		log_event "Copy ${AGENT_PACKAGE_NAME} from local"
+		cp ${pkg_dir}/${AGENT_PACKAGE_NAME} ${DIR}/pkgs
+	else
+		log_event "Download ${AGENT_PACKAGE_NAME} from web"
+		wget -nc "https://github.com/yubin154/cronusagent/raw/master/pkgs/${AGENT_PACKAGE_NAME}" || { log_event 'download failed' ; exit 1; }
+	fi
+
+	if [ -f "${pkg_dir}/agent-${pkg_ver}.unix.cronus" ]; then	
+		log_event "Copy agent-${pkg_ver}.unix.cronus from local"
+		cp ${pkg_dir}/agent-${pkg_ver}.unix.cronus ${DIR}/pkgs
+	else
+		log_event "Download agent-${pkg_ver}.unix.cronus from web"
+		wget -nc "https://github.com/yubin154/cronusagent/raw/master/pkgs/agent-${pkg_ver}.unix.cronus"  || { log_event 'download failed' ; exit 1; }
+	fi
+
+        log_event "Start Installing and configuring Cronus agent..."
+        cd ${target_dir}
+        
+        log_event "Stop any existing cronus agent"
+	# upstart
+	if [[ -f /etc/init/cronus.conf ]]; then
+        	initctl stop cronus > /dev/null 2>&1
+	# systemd
+	elif [[ -f /etc/systemd/system/multi-user.target.wants/cronus.service ]]; then
+		systemctl stop cronus > /dev/null 2>&1
+	fi
+	sleep 2
+
+        rm -rf ${target_dir}/cronus/software
+        tar xzpf $DIR/pkgs/${AGENT_PACKAGE_NAME} >> $LOG 2>&1
+        if [ $? -ne 0 ]; then
+                fatal_error "Couldn't unpack Cronus agent archive."
+        fi
+
+        mkdir $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix
+        tar xzpf $DIR/pkgs/agent-${pkg_ver}.unix.cronus -C $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix 
+        if [ $? -ne 0 ]; then
+                fatal_error "Couldn't unpack Cronus agent archive."
+        fi
+	chmod 755 $target_dir/cronus
+	chmod 755 $target_dir/cronus/software
+	chmod 777 $target_dir/cronus/software/packages
+	sed -i "s|ROOT_DIR|${target_dir}|g" $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix/cronus/upstart.conf
+        sed -i "s|ROOT_DIR|${target_dir}|g" $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix/cronus/systemd.service
+	
+	mkdir $AGENT_ROOT/installed-packages/python_package/${pypkg_ver}
+        tar xzpf $DIR/pkgs/python_package-${pypkg_ver}.cronus -C $AGENT_ROOT/installed-packages/python_package/${pypkg_ver} 
+        if [ $? -ne 0 ]; then
+                fatal_error "Couldn't unpack Cronus agent python package archive."
+        fi
+        
+        mkdir $AGENT_ROOT/manifests/agent-${pkg_ver}
+        cd ${target_dir}/cronus/software/service_nodes/agent/manifests
+        ln -s $AGENT_ROOT/manifests/agent-${pkg_ver} active
+        
+        cd $AGENT_ROOT/manifests/agent-${pkg_ver}
+        ln -s $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix agent
+        ln -s $AGENT_ROOT/installed-packages/python_package/${pypkg_ver} python_package
+
+	#sed -i "s|_AGENTROOT_|${target_dir}/cronus/software|g" $AGENT_ROOT/manifests/active/agent/conf/prod.ini
+	#pushd "${target_dir}/cronus/software/service_nodes/agent/manifests/active/agent"
+	#su cronus ./cronus/scripts/activate
+	#popd
+
+        ln -s $AGENT_ROOT/.appdata $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix/.appdata
+        if [[ -n ${server_pem} ]] || [[ -f ${server_pem} ]]; then
+            log_event "Copy server certificate and enable https"
+            cp -f ${server_pem} $AGENT_ROOT/.appdata/secure/server.pem
+            chmod 600 $AGENT_ROOT/.appdata/secure/server.pem
+        fi
+
+        if [[ -n ${agent_pwd} ]]; then
+            log_event "Set API password and enable basic auth"
+            echo "{ \"password.local\": \"$agent_pwd\" }" > $AGENT_ROOT/.appdata/secure/.metadata.json
+        fi
+        chmod 600 $AGENT_ROOT/.appdata/secure/*
+
+        chown -R cronus:app ${target_dir}/cronus
+        cd $DIR
+	log_event "Complete Installing and configuring Cronus agent..."
+	log_event " "
+fi
+
+if hash initctl 2>/dev/null; then
+	log_event "Setup upstart: add cronus.conf"
+        log_event "Start cronus by upstart:"
+	cp -f $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix/cronus/upstart.conf /etc/init/cronus.conf
+        initctl start cronus
+elif hash systemctl 2>/dev/null; then
+	log_event "Setup systemd: add cronus.service"
+	log_event "Start cronus by systemd:"
+	cp -f $AGENT_ROOT/installed-packages/agent/${pkg_ver}.unix/cronus/systemd.service /usr/lib/systemd/system/cronus.service
+	ln -s /lib/systemd/system/cronus.service /etc/systemd/system/multi-user.target.wants/cronus.service
+	systemctl start cronus
+else
+        log_event "Require upstart or systemd, none is installed. Aborting."
+        exit 1
+fi
+log_event "Started cronus"
+
+#rm -rf $DIR/pkgs
+rm -f $TMP
+
+log_event "Removed temp files, finished at `date`"
+log_event "-------------------------------------------"
+

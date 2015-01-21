@@ -1,0 +1,44 @@
+#!/bin/bash -ae
+
+SERVICE_NAME='agent'
+EXPECTED_ARGS=2
+INI=
+WIN=
+
+# check the number of args
+if [[ $# > $EXPECTED_ARGS ]]
+then
+        echo "Usage: `basename $0`"
+        echo ""
+        exit -1
+fi
+
+if [[ $# = 0 ]] || [ "$1" == "win" ]; then
+        INI=prod.ini
+else
+        INI=$1.ini
+fi
+
+if [ "$1" == "win" ] || [ "$2" == "win" ]; then
+	WIN="true"
+else
+	WIN="false"
+fi
+
+# get path to paster
+SERVICE_PATH="$(dirname $0)/../../"
+cd $SERVICE_PATH
+
+#CONF_PATH="../../../manifests/active/${SERVICE_NAME}_config"
+
+if [[ ! -f conf/${INI} || ! -f ${SERVICE_NAME}.pid ]]; then
+    echo 'unable to find the config file or service pid'
+else
+    echo "Shutdown ${SERVICE_NAME} with env: $ENVIRONMENT"
+    PYTHON_PATH="../../../manifests/active/python_package/bin/"
+    $PYTHON_PATH/python $PYTHON_PATH/paster serve --daemon --pid-file=${SERVICE_NAME}.pid conf/${INI} stop || {
+        echo 'unable to shutdown agent using paster'
+    }
+fi
+
+exit 0

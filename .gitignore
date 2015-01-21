@@ -1,0 +1,3 @@
+# ignore local-deploy, and target folder
+local-deploy
+target

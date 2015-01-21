@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo "delete service ${1}"
+if [ -f /etc/init/${1}.conf ]; then
+  initctl stop ${1}
+  sleep 2
+  rm -f /etc/init/${1}.conf
+elif [ -f /etc/systemd/system/multi-user.target.wants/${1}.service ]; then
+  systemctl stop ${1}
+  sleep 2
+  rm -f /etc/systemd/system/multi-user.target.wants/${1}.service
+fi
+

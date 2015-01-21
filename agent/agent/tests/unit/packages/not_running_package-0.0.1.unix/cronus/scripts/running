@@ -1,0 +1,4 @@
+#!/bin/bash
+
+echo "[AGENT_MESSAGE] { \"error\": 1, \"errorMsg\": \"I am dead\" }"
+exit 1

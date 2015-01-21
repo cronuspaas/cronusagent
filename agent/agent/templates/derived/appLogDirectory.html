@@ -1,0 +1,37 @@
+<%inherit file='/base/agentNav.html' />
+
+<%def name="title()">Application Logs</%def>
+<div class="container" >
+<h3>Application Log Files</h3>
+<b>Absolute Path:</b> ${c.absolutePath} <p>
+
+<table height="100%" border="0" width="70%">
+	<THead>
+		<tr>
+			<th align="right" width="5%" ></th>
+			<th align="left"  width="40%" >${c.message}&nbsp;</th>
+			<th align="right" width="25%" class='sortDate'>Timestamp&nbsp;</th>
+			<th align="right" width="15%" class='sortNumeric'>Size&nbsp;</th>
+		</tr>
+	</THead>
+	<TBody>
+
+<%def name="buildRow(filePath, fileName, imgPath, time, size)">
+		<tr>
+			<td align="right"><img src=${imgPath}/></td>
+			<td align="left"><a href=${filePath}>${fileName}</a>&nbsp;
+			</td>
+			<td align="right">${time}</td>
+			<td align="right">${size}</td>
+		</tr>
+</%def>
+
+%for k in c.status:
+    ${buildRow(k[0], k[1], k[2], k[3], k[4])}
+%endfor
+	</TBody>
+</table>
+</div>
+
+<%def name="footer()">
+</%def>

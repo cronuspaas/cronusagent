@@ -1,0 +1,42 @@
+#!/bin/bash
+
+checkstatus() {
+  # check service status every 5 second for 50 seconds
+  dstatus=0
+  for i in {1..10}; do
+    echo "check service status"
+    case "$dtype" in
+    upstart) initctl status $service | grep -v "stop/waiting" 
+             ;;
+    systemd) systemctl is-active $service 
+             ;;
+    *) echo "Invalid daemon type $dtype"
+       ;;
+    esac
+    
+    dstatus=$?
+    [ $dstatus -eq 0 ] || break;
+    sleep 5
+
+  done
+}
+
+echo "shutdown service ${1}"
+
+service=$1
+if [ -f /etc/init/${1}.conf ]; then
+  dtype="upstart"
+elif [ -f /etc/systemd/system/multi-user.target.wants/${1}.service ]; then
+  dtype="systemd"
+fi
+
+case "$dtype" in
+upstart) initctl stop ${1}
+         ;;
+systemd) systemctl stop ${1}
+         ;;
+*) echo "Invalid daemon type $dtype"
+   ;;
+esac
+
+checkstatus

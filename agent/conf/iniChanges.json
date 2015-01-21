@@ -1,0 +1,43 @@
+{
+    "agent": {
+    	"prod": {
+            "handler_uuid": {"args": "('%(here)s/../.appdata/logs/uuid.log', 'a', 5242880, 1)"},
+            "handler_execoutput": {"args": "('%(here)s/../.appdata/logs/exec_threadoutput.log', 'a', 5242880, 1)"}
+    	},
+        "test": {
+            "handler_agent": {"level": "CRITICAL"},
+            "handler_console": {"level": "CRITICAL"},
+            "handler_exec": {"level": "CRITICAL"},
+            "handler_monitor": {"level": "CRITICAL"},
+            "handler_uuid": {"level": "CRITICAL"},
+            "handler_agentapi": {"level": "CRITICAL"},
+            "handler_gc": {"level": "CRITICAL"},
+            "handler_execoutput": {"level": "CRITICAL"},
+            "handler_console": {"level": "CRITICAL"},
+            "server:main": {
+                "ssl_pem": null
+            },
+            "app:main": {
+                "monitor_check_timeinterval": 2,
+                "agent_root": "%(here)s/../target/test_dir/cronus/software",
+                "repo_root": "%(here)s/../target/test_dir/cronus/software/packages",
+                "threadMgr_garbage_freq": 0.1,
+                "threadMgr_thread_age": 360,
+                "packageMgr_garbage_freq": 60,
+                "packageMgr_package_maxsize": 0.0,
+                "packageMgr_package_mount": "%(here)s/../target/test_dir",
+                "seederMgr_garbage_freq": 0.2,
+                "seederMgr_seed_age": 10,
+                "exec_thread_sleep_time": 0.1,
+                "exec_thread_timeout": 10,
+                "exec_thread_progress_timeout": 5,
+                "agent_thread_timeout": 10,
+                "agent_thread_progress_timeout": 5,
+                "set debug": null,
+                "health_disk_usage_percent_threshold": 90,
+                "health_agent_file_descriptor_usage_threshold": 500,
+                "appinitdelay": 15
+            }
+        }
+    }
+}

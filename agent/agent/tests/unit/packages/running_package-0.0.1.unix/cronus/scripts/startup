@@ -1,0 +1,9 @@
+#!/bin/bash
+
+TEST_DIR_PATH="$(dirname $0)/../../../../../../../target/test_dir/test_active_manifest_keepalive"
+if [ ! -d $TEST_DIR_PATH ]; then
+    mkdir -p $TEST_DIR_PATH
+fi
+
+echo "started" > "$TEST_DIR_PATH/running_started"
+exit 0

@@ -1,0 +1,8 @@
+#!/bin/bash
+# scrape exec_threadoutput.log for raw script output
+dir=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
+if [ $# -ne 2]; then
+  echo "2 arguments expected, expect uuid {uuid} or guid {guid}"
+  exit -1
+fi 
+awk '/'$2' '$1' start/,/'$2' '$1' end/' "$dir"/../../.appdata/logs/exec_threadoutput.log | sed 's/.*'"$2"' '"$1"' start //g' | sed 's/'"$2"' '"$1"' end//g'

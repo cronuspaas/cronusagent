@@ -1,0 +1,29 @@
+<%inherit file='/base/agentNav.html' />
+
+<%def name="title()">Package Upload</%def>
+
+<div class="container" >
+<h3>Upload Package</h3>
+
+<form action="/services/dist/uploadpackage" method="post" accept-charset="utf-8"
+      enctype="multipart/form-data">
+
+    <label for="cronuspackage">Package</label>
+    <input id="file" name="file" type="file" value="" />
+	<p></p>
+    <input type="submit" value="Upload" />
+</form>
+
+<h3>Existing Packages</h3>
+
+<%def name="buildRow(fileName)">
+    <p>${fileName}</p>
+</%def>
+
+%for item in c.content:
+    ${buildRow(item)}
+%endfor
+
+</div>
+
+<%def name="footer()"></%def>

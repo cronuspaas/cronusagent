@@ -1,0 +1,13 @@
+[Unit]
+Description=Cronus Agent
+
+[Service]
+TimeoutStartSec=0
+User=cronus
+#ExecStartPre=-rm -f ROOT_DIR/cronus/software/service_nodes/agent/manifests/active/agent/agent.pid
+ExecStart=ROOT_DIR/cronus/software/service_nodes/agent/manifests/active/agent/cronus/scripts/startup nodaemon
+ExecStopPost=-ROOT_DIR/cronus/software/service_nodes/agent/manifests/active/agent/cronus/scripts/shut
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

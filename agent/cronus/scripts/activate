@@ -1,0 +1,77 @@
+#!/bin/bash -ae
+
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+
+# if not http cert installed, install the default http cert
+# warning, never use the default http cert in production!!
+cp -n $SCRIPT_DIR/../server.pem.changeme $SCRIPT_DIR/../../.appdata/secure/server.pem
+
+# shutdown the old agent.
+# the idea is that system daemon will restart using the new agent
+# this script will try to find the port for the agent and send a shutdown command
+
+CWD=`dirname $0`
+
+echo "Attempting to kill all agents using pkill..."
+
+# set the user to cronus if there isn't a user set
+if [[ $USER == "" ]]; then
+    USER="cronus"
+fi
+echo "Agent user $USER"
+
+if [[ $(uname) == "SunOS" ]]; then
+
+    # use pkill to kill all instances of the agent
+    PIDS=$(pgrep -u $USER -f python) || {
+        echo "noop" > /dev/null
+    }
+
+    for PID in $PIDS; do
+        RESULT=0
+        pargs -l $PID | grep agent.pid | grep conf || {
+            RESULT=1
+        }
+        if [[ $RESULT == 0 ]]; then
+            echo "Sending kill command to pid = $PID"
+            kill -9 $PID || {
+                echo '[AGENT_MESSAGE] {"errorMsg": "Error using pkill to kill agent processes", "error": 200}'
+            }
+        fi
+    done
+
+elif [[ $(uname) == "Linux" ]]; then
+
+    AGENT_PATTERN="python.*paster.*agent\.pid.*conf"
+
+    PIDS=$(pgrep -u $USER -f $AGENT_PATTERN) || {
+        echo "noop" > /dev/null
+    }
+    if [ ! -z ${PIDS} ]; then
+        echo "Attempting to kill these pids(${PIDS})"
+        $(pkill -9 -u $USER -f $AGENT_PATTERN) || {
+            echo "Error killing $PIDS - $?"
+        }
+    fi
+
+elif [[ $(uname) == "Darwin" ]]; then
+    PIDS=$(ps ax | grep agent.pid | grep conf | grep -v grep | awk '{ print $1 }')
+
+    for PID in $PIDS; do
+        echo "Sending kill command to pid = $PID"
+        kill -9 $PID || {
+            echo '[AGENT_MESSAGE] {"errorMsg": "Error using pkill to kill agent processes", "error": 200}'
+        }
+    done
+
+else
+    echo "[AGENT_MESSAGE] {\"errorMsg\": \"Error supported platform $(uname)\", \"error\": 201}"
+fi
+
+#sleep 5 seconds to let system release port
+sleep 5;
+
+echo "Done killing all agents using pkill"
+
+exit 0
+
