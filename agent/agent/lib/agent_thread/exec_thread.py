@@ -136,12 +136,12 @@ class ExecThread(AgentThread):
                         self.__LOG.warning('partial response not valid %s' % response)
                         return
                     
-                # store away the response for later
-                self.__response.update(response)
+                    # store away the response for later
+                    self.__response.update(response)
 
-                # update the progress
-                if 'progress' in self.__response:   
-                    self._updateProgress(self.__response['progress'], 99)
+                    # update the progress
+                    if 'progress' in self.__response:   
+                        self._updateProgress(self.__response['progress'], 99)
 
         finally:
             if can_clear:
